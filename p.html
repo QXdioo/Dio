@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mini Linux OS - Di's ESP32 (Real v2)</title>
+  <style>
+    :root {
+      --bg: #0a0e14;
+      --panel: rgba(16, 20, 33, 0.88);
+      --text: #e0e0e0;
+      --accent: #5294e2;
+      --hover: rgba(255,255,255,0.09);
+      --window: rgba(17, 21, 28, 0.94);
+      --border: #2a3240;
+      --blur: blur(14px);
+    }
+    * { margin:0; padding:0; box-sizing:border-box; user-select:none; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg) url('https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80&w=2000') center/cover no-repeat fixed;
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+    .desktop-icon {
+      position: absolute;
+      width: 88px;
+      text-align: center;
+      color: white;
+      text-shadow: 1px 1px 4px black;
+      cursor: pointer;
+      padding: 8px;
+      border-radius: 10px;
+      transition: all 0.2s;
+    }
+    .desktop-icon:hover { background: rgba(255,255,255,0.12); transform: scale(1.08); }
+    .desktop-icon img { width: 52px; height: 52px; border-radius: 12px; }
+    .desktop-icon div { margin-top: 6px; font-size: 13px; font-weight: 500; }
+
+    .taskbar {
+      position: fixed;
+      bottom: 0;
+      left: 0; right: 0;
+      height: 48px;
+      background: var(--panel);
+      backdrop-filter: var(--blur);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      z-index: 1000;
+    }
+    .start-btn {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 17px;
+      padding: 8px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-right: 12px;
+    }
+    .start-btn:hover, .start-btn.active { background: var(--hover); }
+    .taskbar-icons { flex: 1; display: flex; gap: 8px; }
+    .taskbar-icons div {
+      width: 34px; height: 34px;
+      background: var(--hover);
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .clock { margin-left: auto; font-size: 13.5px; font-weight: 500; }
+
+    .start-menu {
+      position: fixed;
+      bottom: 60px;
+      left: 12px;
+      width: 520px;
+      height: 620px;
+      background: var(--panel);
+      backdrop-filter: var(--blur);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.75);
+      display: none;
+      overflow: hidden;
+      z-index: 999;
+      transform: translateY(30px);
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .start-menu.show {
+      display: block;
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .menu-header { padding: 16px; border-bottom: 1px solid var(--border); }
+    .search {
+      background: rgba(255,255,255,0.12);
+      border: none;
+      width: 100%;
+      padding: 13px 16px;
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 15px;
+    }
+    .pinned {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 18px;
+    }
+    .app {
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .app:hover { transform: scale(1.1); }
+    .app img { width: 50px; height: 50px; border-radius: 12px; }
+    .app span { display: block; font-size: 12px; margin-top: 6px; }
+
+    .menu-footer {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+    .power { cursor: pointer; font-size: 22px; }
+
+    .window {
+      position: absolute;
+      min-width: 420px;
+      min-height: 320px;
+      background: var(--window);
+      backdrop-filter: var(--blur);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 15px 50px rgba(0,0,0,0.7);
+      overflow: hidden;
+      display: none;
+      z-index: 500;
+    }
+    .titlebar {
+      background: rgba(13,17,23,0.95);
+      padding: 9px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: move;
+    }
+    .title { font-weight: 600; font-size: 14.5px; }
+    .controls button {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      font-size: 19px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    .controls button.close:hover { color: #ff5f57; }
+    .content { padding: 18px; height: calc(100% - 42px); overflow: auto; }
+  </style>
+</head>
+<body>
+
+<!-- === DESKTOP ICONS (semua ikon baru sudah ditambah) === -->
+<!-- Files -->
+<div class="desktop-icon" style="left:30px; top:40px;" ondblclick="openWindow('explorer')">
+  <img src="https://img.icons8.com/fluency/96/folder.png" alt="Files">
+  <div>Files</div>
+</div>
+
+<!-- Terminal -->
+<div class="desktop-icon" style="left:30px; top:150px;" ondblclick="openWindow('terminal')">
+  <img src="https://img.icons8.com/fluency/96/console.png" alt="Terminal">
+  <div>Terminal</div>
+</div>
+
+<!-- Sosial Media Icons (baru!) -->
+<div class="desktop-icon" style="left:30px; top:260px;" ondblclick="window.open('https://www.instagram.com/qxdio_?igsh=YzA1aGR3cWNyNWx3', '_blank')">
+  <img src="https://img.icons8.com/fluency/96/instagram-new.png" alt="Instagram">
+  <div>Instagram</div>
+</div>
+
+<div class="desktop-icon" style="left:30px; top:370px;" ondblclick="window.open('https://www.tiktok.com/@qxdio_?_r=1&_t=ZS-94DZ97ekBjJ', '_blank')">
+  <img src="https://img.icons8.com/fluency/96/tiktok.png" alt="TikTok">
+  <div>TikTok</div>
+</div>
+
+<div class="desktop-icon" style="left:30px; top:480px;" ondblclick="window.open('https://youtube.com/@qxdio?si=NDGaGUDP2iUS62hX', '_blank')">
+  <img src="https://img.icons8.com/fluency/96/youtube-play.png" alt="YouTube">
+  <div>YouTube</div>
+</div>
+
+<div class="desktop-icon" style="left:30px; top:590px;" ondblclick="window.open('https://x.com/qxdio001', '_blank')">
+  <img src="https://img.icons8.com/fluency/96/x.png" alt="X">
+  <div>X</div>
+</div>
+
+<div class="desktop-icon" style="left:30px; top:700px;" ondblclick="window.open('https://discord.gg/WKa9Swgm', '_blank')">
+  <img src="https://img.icons8.com/fluency/96/discord.png" alt="Discord">
+  <div>Discord</div>
+</div>
+
+<!-- Taskbar -->
+<div class="taskbar">
+  <button class="start-btn" id="startBtn">Start</button>
+  <div class="taskbar-icons">
+    <div onclick="openWindow('terminal')"></div>
+    <div onclick="openWindow('explorer')"></div>
+  </div>
+  <div class="clock" id="clock"></div>
+</div>
+
+<!-- Start Menu -->
+<div class="start-menu" id="startMenu">
+  <div class="menu-header">
+    <input type="text" class="search" placeholder="Cari aplikasi atau link...">
+  </div>
+  <div class="pinned">
+    <div class="app" onclick="openWindow('explorer')"><img src="https://img.icons8.com/fluency/96/folder.png"><span>Files</span></div>
+    <div class="app" onclick="openWindow('terminal')"><img src="https://img.icons8.com/fluency/96/console.png"><span>Terminal</span></div>
+    <div class="app" onclick="window.open('https://www.instagram.com/qxdio_?igsh=YzA1aGR3cWNyNWx3','_blank')"><img src="https://img.icons8.com/fluency/96/instagram-new.png"><span>Instagram</span></div>
+    <div class="app" onclick="window.open('https://www.tiktok.com/@qxdio_?_r=1&_t=ZS-94DZ97ekBjJ','_blank')"><img src="https://img.icons8.com/fluency/96/tiktok.png"><span>TikTok</span></div>
+    <div class="app" onclick="window.open('https://youtube.com/@qxdio?si=NDGaGUDP2iUS62hX','_blank')"><img src="https://img.icons8.com/fluency/96/youtube-play.png"><span>YouTube</span></div>
+    <div class="app" onclick="window.open('https://x.com/qxdio001','_blank')"><img src="https://img.icons8.com/fluency/96/x.png"><span>X</span></div>
+  </div>
+  <div class="menu-footer">
+    <div class="power" onclick="alert('Shutting down Mini OS... 👋')">⏻</div>
+    <div>Di's Mini Linux OS • ESP32-S3</div>
+  </div>
+</div>
+
+<!-- Windows (sama seperti sebelumnya) -->
+<div id="win-terminal" class="window" style="top:120px; left:220px; width:650px; height:420px;">
+  <div class="titlebar">
+    <div class="title">Terminal</div>
+    <div class="controls">
+      <button class="close" onclick="closeWindow('win-terminal')">×</button>
+    </div>
+  </div>
+  <div class="content">
+    <div id="terminal-content" style="background:#000;color:#0f0;font-family:monospace;padding:14px;height:100%;overflow:auto;">
+      user@esp32-s3:~$ ls /usb/<br>
+      Documents  Music  Photos  Social<br>
+      user@esp32-s3:~$ echo "Semua sosial media sudah terhubung!"<br>
+      Semua sosial media sudah terhubung!<br>
+      user@esp32-s3:~$
+    </div>
+  </div>
+</div>
+
+<div id="win-explorer" class="window" style="top:100px; left:320px; width:720px; height:520px;">
+  <div class="titlebar">
+    <div class="title">File Explorer - /usb/</div>
+    <div class="controls">
+      <button class="close" onclick="closeWindow('win-explorer')">×</button>
+    </div>
+  </div>
+  <div class="content">
+    <p style="margin-bottom:16px; opacity:0.8;">/usb/ • Semua file &amp; shortcut sosial media siap</p>
+    <!-- kamu bisa tambah list file nanti -->
+  </div>
+</div>
+
+<script>
+// Clock
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// Start Menu
+const startBtn = document.getElementById('startBtn');
+const startMenu = document.getElementById('startMenu');
+startBtn.onclick = () => {
+  startMenu.classList.toggle('show');
+  startBtn.classList.toggle('active');
+};
+document.addEventListener('click', e => {
+  if (!startMenu.contains(e.target) && !startBtn.contains(e.target)) {
+    startMenu.classList.remove('show');
+    startBtn.classList.remove('active');
+  }
+});
+
+// Window functions
+function openWindow(id) {
+  const win = document.getElementById('win-' + id);
+  win.style.display = 'block';
+  bringToFront(win);
+}
+function closeWindow(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+// Draggable
+document.querySelectorAll('.titlebar').forEach(bar => {
+  let isDragging = false, win, initialX, initialY;
+  bar.addEventListener('mousedown', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    win = bar.parentElement;
+    isDragging = true;
+    initialX = e.clientX - win.offsetLeft;
+    initialY = e.clientY - win.offsetTop;
+    bringToFront(win);
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isDragging || !win) return;
+    e.preventDefault();
+    win.style.left = (e.clientX - initialX) + 'px';
+    win.style.top  = (e.clientY - initialY) + 'px';
+  });
+  document.addEventListener('mouseup', () => isDragging = false);
+});
+
+function bringToFront(el) {
+  document.querySelectorAll('.window').forEach(w => w.style.zIndex = 500);
+  el.style.zIndex = 999;
+}
+</script>
+
+</body>
+</html>
